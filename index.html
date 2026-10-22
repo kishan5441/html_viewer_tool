@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>HTML Live Preview — v3</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f5f7;
+    --panel-bg: #ffffff;
+    --border: #e0e0e0;
+    --text: #1d1d1f;
+    --text-dim: #6e6e73;
+    --accent: #0071e3;
+    --btn-bg: #ffffff;
+    --btn-border: #d2d2d7;
+    --btn-hover: #f0f0f2;
+    --editor-bg: #ffffff;
+    --editor-text: #1d1d1f;
+    --danger: #ff3b30;
+    --ok: #34c759;
+    --tab-active-bg: #ffffff;
+  }
+  body.dark {
+    --bg: #000;
+    --panel-bg: #1c1c1e;
+    --border: #38383a;
+    --text: #f5f5f7;
+    --text-dim: #8e8e93;
+    --accent: #0a84ff;
+    --btn-bg: #2c2c2e;
+    --btn-border: #3a3a3c;
+    --btn-hover: #3a3a3c;
+    --editor-bg: #1c1c1e;
+    --editor-text: #f5f5f7;
+    --danger: #ff453a;
+    --tab-active-bg: #2c2c2e;
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    transition: background .2s, color .2s;
+  }
+  body { display: flex; flex-direction: column; }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    z-index: 10;
+  }
+  .toolbar .brand {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text);
+    margin-right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .toolbar .brand .dot { color: var(--accent); font-size: 20px; line-height: 1; }
+
+  .btn {
+    padding: 7px 14px;
+    border: 1px solid var(--btn-border);
+    border-radius: 8px;
+    background: var(--btn-bg);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background .15s, border-color .15s, transform .05s;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .btn:hover { background: var(--btn-hover); }
+  .btn:active { transform: scale(.97); }
+  .btn.danger { color: var(--danger); }
+  .btn.danger:hover { background: rgba(255,59,48,.08); border-color: rgba(255,59,48,.35); }
+  .btn.primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .btn.primary:hover { background: var(--accent); filter: brightness(1.1); }
+
+  input[type="file"] { display: none; }
+  .spacer { flex: 1; }
+
+  /* ---------- Tab bar (mobile only) ---------- */
+  .tab-bar {
+    display: none;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    z-index: 9;
+  }
+  .tab-bar .tab {
+    flex: 1;
+    padding: 12px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+    transition: color .15s, background .15s;
+    font-family: inherit;
+  }
+  .tab-bar .tab:hover { background: var(--btn-hover); }
+  .tab-bar .tab.active {
+    color: var(--accent);
+    background: var(--tab-active-bg);
+  }
+  .tab-bar .tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+  }
+
+  /* ---------- Split layout ---------- */
+  .split {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .editor-pane,
+  .preview-pane {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .editor-pane {
+    flex: 0 0 50%;
+    background: var(--editor-bg);
+  }
+  .preview-pane {
+    flex: 1 1 auto;
+    background: var(--panel-bg);
+  }
+
+  /* ---------- Pane headers ---------- */
+  .pane-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(52,199,89,.15);
+    color: var(--ok);
+    transition: opacity .3s;
+  }
+  .badge.idle { background: transparent; color: var(--text-dim); }
+
+  /* ---------- Editor ---------- */
+  #htmlEditor {
+    flex: 1;
+    width: 100%;
+    padding: 14px 16px;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
+    font-size: 13.5px;
+    line-height: 1.6;
+    background: var(--editor-bg);
+    color: var(--editor-text);
+    transition: background .2s, color .2s;
+    tab-size: 2;
+    overflow: auto;
+    white-space: pre;
+  }
+
+  /* ---------- Preview ---------- */
+  #previewFrame {
+    flex: 1;
+    border: none;
+    background: #ffffff;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ---------- Divider (desktop only) ---------- */
+  .divider {
+    flex: 0 0 6px;
+    background: var(--border);
+    cursor: col-resize;
+    position: relative;
+    transition: background .15s;
+    user-select: none;
+    touch-action: none;
+  }
+  .divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 32px;
+    background: var(--text-dim);
+    border-radius: 2px;
+    opacity: .35;
+    transition: opacity .15s, height .15s;
+  }
+  .divider:hover, .divider.active { background: var(--accent); }
+  .divider:hover::after, .divider.active::after {
+    opacity: .9; height: 48px; background: #fff;
+  }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    padding: 10px 20px;
+    background: #1c1c1e;
+    color: #fff;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 6px 24px rgba(0,0,0,.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform .3s, opacity .3s;
+    z-index: 1000;
+    max-width: 90vw;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- Drag overlay ---------- */
+  .drop-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,113,227,.15);
+    border: 3px dashed var(--accent);
+    z-index: 999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--accent);
+    pointer-events: none;
+  }
+  .drop-overlay.visible { display: flex; }
+
+  /* ============================================
+     MOBILE: tab-based layout (fix for v2 issue)
+     ============================================ */
+  @media (max-width: 899px) {
+    .tab-bar { display: flex; }
+    .divider { display: none; }
+
+    .split { flex-direction: column; }
+
+    .editor-pane,
+    .preview-pane {
+      flex: 1 1 100% !important;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Hide inactive pane based on active tab */
+    .split[data-active="code"] .preview-pane { display: none; }
+    .split[data-active="preview"] .editor-pane { display: none; }
+
+    /* Compact toolbar + headers on mobile */
+    .toolbar { padding: 6px 8px; gap: 6px; }
+    .toolbar .brand { font-size: 12px; margin-right: 2px; gap: 4px; }
+    .toolbar .brand .dot { font-size: 16px; }
+    .btn { padding: 6px 10px; font-size: 12px; }
+    .pane-header { padding: 4px 10px; font-size: 11px; }
+    .badge { font-size: 10px; padding: 1px 6px; }
+    #htmlEditor { font-size: 13px; padding: 12px; }
+
+    .toast { bottom: 16px; font-size: 12px; padding: 8px 16px; }
+  }
+
+  /* Extra-compact for very small screens */
+  @media (max-width: 480px) {
+    .toolbar .brand { display: none; }
+    .btn { padding: 6px 8px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ---------- TOOLBAR ---------- -->
+  <header class="toolbar">
+    <div class="brand"><span class="dot">●</span> HTML Live Preview</div>
+
+    <label for="fileInput" class="btn" title="Import HTML file">📂 Import</label>
+    <input type="file" id="fileInput" accept=".html,.htm,text/html">
+
+    <button id="exportBtn" class="btn primary" title="Export HTML (Ctrl/Cmd+S)">💾 Export</button>
+    <button id="clearBtn" class="btn danger" title="Clear editor">🗑️ Clear</button>
+    <button id="fullPreviewBtn" class="btn" title="Open in new window">🚀 Full Preview</button>
+
+    <div class="spacer"></div>
+
+    <button id="themeToggle" class="btn" title="Toggle dark mode">🌙 Dark</button>
+  </header>
+
+  <!-- ---------- TAB BAR (mobile only) ---------- -->
+  <nav class="tab-bar" id="tabBar">
+    <button class="tab active" data-tab="code">📝 Code</button>
+    <button class="tab" data-tab="preview">👁️ Preview</button>
+  </nav>
+
+  <!-- ---------- MAIN SPLIT ---------- -->
+  <main class="split" id="split" data-active="code">
+    <div class="editor-pane" id="editorPane">
+      <div class="pane-header">
+        <span>HTML Editor</span>
+        <span class="badge idle" id="stats">0 lines · 0 chars</span>
+      </div>
+      <textarea id="htmlEditor" spellcheck="false" placeholder="Paste or write your HTML here…"></textarea>
+    </div>
+
+    <div class="divider" id="divider" title="Drag to resize · Double-click to reset"></div>
+
+    <div class="preview-pane">
+      <div class="pane-header">
+        <span>Live Preview</span>
+        <span class="badge idle" id="refreshBadge">idle</span>
+      </div>
+      <iframe
+        id="previewFrame"
+        title="Live Preview"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads allow-presentation"
+      ></iframe>
+    </div>
+  </main>
+
+  <!-- ---------- OVERLAYS ---------- -->
+  <div class="drop-overlay" id="dropOverlay">Drop HTML file to import</div>
+  <div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============================================================
+   *  DOM refs
+   * ============================================================ */
+  const editor         = document.getElementById('htmlEditor');
+  const preview        = document.getElementById('previewFrame');
+  const fileInput      = document.getElementById('fileInput');
+  const exportBtn      = document.getElementById('exportBtn');
+  const clearBtn       = document.getElementById('clearBtn');
+  const fullPreviewBtn = document.getElementById('fullPreviewBtn');
+  const themeToggle    = document.getElementById('themeToggle');
+  const statsEl        = document.getElementById('stats');
+  const refreshBadge   = document.getElementById('refreshBadge');
+  const divider        = document.getElementById('divider');
+  const editorPane     = document.getElementById('editorPane');
+  const splitEl        = document.getElementById('split');
+  const dropOverlay    = document.getElementById('dropOverlay');
+  const toastEl        = document.getElementById('toast');
+  const tabBar         = document.getElementById('tabBar');
+
+  const STORAGE_KEY  = 'html-live-preview-v3';
+  const FILENAME_KEY = 'html-live-preview-v3-filename';
+  const TAB_KEY      = 'html-live-preview-v3-tab';
+  const THEME_KEY    = 'html-live-preview-v3-theme';
+
+  const DEFAULT_HTML = [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    '  <meta charset="UTF-8">',
+    '  <title>Hello</title>',
+    '  <style>',
+    '    body {',
+    '      font-family: system-ui, sans-serif;',
+    '      display: grid;',
+    '      place-items: center;',
+    '      min-height: 100vh;',
+    '      margin: 0;',
+    '      background: linear-gradient(135deg, #667eea, #764ba2);',
+    '      color: white;',
+    '    }',
+    '    .card {',
+    '      padding: 40px 60px;',
+    '      background: rgba(255,255,255,0.1);',
+    '      border-radius: 16px;',
+    '      backdrop-filter: blur(10px);',
+    '      text-align: center;',
+    '    }',
+    '    button {',
+    '      margin-top: 16px;',
+    '      padding: 10px 20px;',
+    '      border: none;',
+    '      border-radius: 8px;',
+    '      background: white;',
+    '      color: #764ba2;',
+    '      font-weight: 600;',
+    '      cursor: pointer;',
+    '    }',
+    '  </style>',
+    '</head>',
+    '<body>',
+    '  <div class="card">',
+    '    <h1>Hello, World!</h1>',
+    '    <p>Start editing to see the live preview.</p>',
+    '    <button onclick="alert(\'It works!\')">Click me</button>',
+    '  </div>',
+    '</body>',
+    '</html>'
+  ].join('\n');
+
+  let currentFilename = 'index.html';
+  let refreshBadgeTimer;
+  let debounceTimer;
+
+  /* ============================================================
+   *  Toast helper
+   * ============================================================ */
+  let toastTimer;
+  function toast(msg, ms) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, ms || 2000);
+  }
+
+  /* ============================================================
+   *  Stats
+   * ============================================================ */
+  function updateStats() {
+    const val = editor.value;
+    const lines = val === '' ? 0 : val.split('\n').length;
+    statsEl.textContent = lines + ' lines · ' + val.length + ' chars';
+  }
+
+  /* ============================================================
+   *  Live preview (debounced)
+   * ============================================================ */
+  function updatePreview(immediate) {
+    clearTimeout(debounceTimer);
+    const run = function () {
+      preview.srcdoc = editor.value || '<!DOCTYPE html><html><body></body></html>';
+      refreshBadge.textContent = 'updated ✓';
+      refreshBadge.classList.remove('idle');
+      clearTimeout(refreshBadgeTimer);
+      refreshBadgeTimer = setTimeout(function () {
+        refreshBadge.textContent = 'ready';
+        refreshBadge.classList.add('idle');
+      }, 900);
+    };
+    if (immediate) run();
+    else debounceTimer = setTimeout(run, 350);
+  }
+
+  /* ============================================================
+   *  Save / Load
+   * ============================================================ */
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, editor.value);
+      localStorage.setItem(FILENAME_KEY, currentFilename);
+    } catch (_) {}
+  }
+  function loadSaved() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      const savedName = localStorage.getItem(FILENAME_KEY);
+      if (savedName) currentFilename = savedName;
+      return saved;
+    } catch (_) { return null; }
+  }
+
+  /* ============================================================
+   *  Init
+   * ============================================================ */
+  const saved = loadSaved();
+  editor.value = saved !== null ? saved : DEFAULT_HTML;
+  updateStats();
+  updatePreview(true);
+
+  /* ============================================================
+   *  Editor events
+   * ============================================================ */
+  editor.addEventListener('input', function () {
+    updateStats();
+    updatePreview();
+    save();
+  });
+
+  editor.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = editor.selectionStart;
+      const end   = editor.selectionEnd;
+      const val   = editor.value;
+      editor.value = val.substring(0, start) + '  ' + val.substring(end);
+      editor.selectionStart = editor.selectionEnd = start + 2;
+      updateStats();
+      save();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      exportBtn.click();
+    }
+  });
+
+  /* ============================================================
+   *  Import
+   * ============================================================ */
+  function importFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (ev) {
+      editor.value = ev.target.result;
+      currentFilename = file.name || 'index.html';
+      updateStats();
+      updatePreview(true);
+      save();
+      toast('Imported: ' + file.name);
+    };
+    reader.onerror = function () { toast('Failed to read file', 2500); };
+    reader.readAsText(file);
+  }
+
+  fileInput.addEventListener('change', function (e) {
+    importFile(e.target.files[0]);
+    fileInput.value = '';
+  });
+
+  /* ============================================================
+   *  Drag & drop import
+   * ============================================================ */
+  let dragDepth = 0;
+  function isHtmlFile(f) {
+    if (!f) return false;
+    const n = (f.name || '').toLowerCase();
+    return f.type === 'text/html' || n.endsWith('.html') || n.endsWith('.htm');
+  }
+  window.addEventListener('dragenter', function (e) {
+    e.preventDefault();
+    dragDepth++;
+    if (e.dataTransfer && Array.from(e.dataTransfer.items || []).length) {
+      dropOverlay.classList.add('visible');
+    }
+  });
+  window.addEventListener('dragover', function (e) { e.preventDefault(); });
+  window.addEventListener('dragleave', function (e) {
+    e.preventDefault();
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) dropOverlay.classList.remove('visible');
+  });
+  window.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dragDepth = 0;
+    dropOverlay.classList.remove('visible');
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (isHtmlFile(file)) importFile(file);
+    else if (file) toast('Only .html / .htm files are supported', 2500);
+  });
+
+  /* ============================================================
+   *  Export
+   * ============================================================ */
+  exportBtn.addEventListener('click', function () {
+    const blob = new Blob([editor.value], { type: 'text/html;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = currentFilename || 'index.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast('Exported: ' + a.download);
+  });
+
+  /* ============================================================
+   *  Clear
+   * ============================================================ */
+  clearBtn.addEventListener('click', function () {
+    if (editor.value.trim() === '') { toast('Editor is already empty'); return; }
+    if (confirm('Clear all code from the editor?\n\n(Your imported file on disk is safe.)')) {
+      editor.value = '';
+      currentFilename = 'index.html';
+      updateStats();
+      updatePreview(true);
+      save();
+      editor.focus();
+      toast('Editor cleared');
+    }
+  });
+
+  /* ============================================================
+   *  Full Preview — opens in new tab with fallback
+   * ============================================================ */
+  fullPreviewBtn.addEventListener('click', function () {
+    // Try 1: window.open + document.write (preserves origin, best for testing)
+    const w = window.open('', '_blank');
+    if (w) {
+      try {
+        w.document.open();
+        w.document.write(editor.value);
+        w.document.close();
+        toast('Opened in new tab');
+        return;
+      } catch (_) {
+        try { w.close(); } catch (__) {}
+      }
+    }
+
+    // Try 2: Blob URL fallback (more reliable on strict mobile browsers)
+    try {
+      const blob = new Blob([editor.value], { type: 'text/html;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const w2   = window.open(url, '_blank');
+      if (!w2) {
+        toast('Pop-up blocked — allow pop-ups for this site', 3500);
+        URL.revokeObjectURL(url);
+        return;
+      }
+      setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+      toast('Opened in new tab');
+    } catch (err) {
+      toast('Full Preview failed: ' + err.message, 3000);
+    }
+  });
+
+  /* ============================================================
+   *  Theme
+   * ============================================================ */
+  themeToggle.addEventListener('click', function () {
+    document.body.classList.toggle('dark');
+    const isDark = document.body.classList.contains('dark');
+    themeToggle.textContent = isDark ? '☀️ Light' : '🌙 Dark';
+    try { localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light'); } catch(_) {}
+  });
+  try {
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    if (savedTheme === 'dark' ||
+        (savedTheme === null && window.matchMedia &&
+         window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.body.classList.add('dark');
+      themeToggle.textContent = '☀️ Light';
+    }
+  } catch (_) {}
+
+  /* ============================================================
+   *  TAB SYSTEM (mobile)
+   * ============================================================ */
+  function setActiveTab(tabName) {
+    splitEl.dataset.active = tabName;
+
+    tabBar.querySelectorAll('.tab').forEach(function (t) {
+      t.classList.toggle('active', t.dataset.tab === tabName);
+    });
+
+    try { localStorage.setItem(TAB_KEY, tabName); } catch(_) {}
+
+    // When switching to preview: dismiss keyboard + force refresh
+    if (tabName === 'preview') {
+      editor.blur();
+      updatePreview(true);
+    }
+  }
+
+  tabBar.addEventListener('click', function (e) {
+    const tab = e.target.closest('.tab');
+    if (!tab) return;
+    setActiveTab(tab.dataset.tab);
+  });
+
+  // Restore saved tab (only matters on mobile)
+  try {
+    const savedTab = localStorage.getItem(TAB_KEY);
+    if (savedTab === 'preview' || savedTab === 'code') {
+      setActiveTab(savedTab);
+    }
+  } catch (_) {}
+
+  /* ============================================================
+   *  Split divider (desktop)
+   * ============================================================ */
+  let isResizing = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  divider.addEventListener('pointerdown', function (e) {
+    if (window.innerWidth < 900) return;
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = editorPane.getBoundingClientRect().width;
+    divider.classList.add('active');
+    divider.setPointerCapture(e.pointerId);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+  });
+
+  divider.addEventListener('pointermove', function (e) {
+    if (!isResizing) return;
+    const dx = e.clientX - startX;
+    const splitRect = splitEl.getBoundingClientRect();
+    const minW = 200;
+    const maxW = splitRect.width - 200 - 6;
+    const newW = Math.max(minW, Math.min(startWidth + dx, maxW));
+    editorPane.style.width = newW + 'px';
+  });
+
+  function endResize(e) {
+    if (!isResizing) return;
+    isResizing = false;
+    divider.classList.remove('active');
+    try { divider.releasePointerCapture(e.pointerId); } catch (_) {}
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  }
+  divider.addEventListener('pointerup', endResize);
+  divider.addEventListener('pointercancel', endResize);
+
+  divider.addEventListener('dblclick', function () {
+    editorPane.style.width = '50%';
+    toast('Split reset to 50/50');
+  });
+
+  /* ============================================================
+   *  Resize boundary handling
+   *  (clear inline width on transition to/from mobile)
+   * ============================================================ */
+  let lastWasMobile = window.innerWidth < 900;
+  window.addEventListener('resize', function () {
+    const isMobile = window.innerWidth < 900;
+    if (isMobile !== lastWasMobile) {
+      // Transition: clear inline width so CSS takes over cleanly
+      editorPane.style.width = '';
+      lastWasMobile = isMobile;
+    }
+  });
+
+  /* ============================================================
+   *  Global shortcut
+   * ============================================================ */
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      exportBtn.click();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
