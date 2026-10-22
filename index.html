@@ -1,18 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- Primary Meta Tags for PWA -->
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
-<!-- Icon for Home Screen (Android & iOS) -->
-<link rel="apple-touch-icon" sizes="180x180" href="/icon-192x192.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/icon-192x192.png">
- 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>HTML Live Preview — v3</title>
+<title>HTML Live Preview — v3.1</title>
+
+<!-- ===== CodeMirror (syntax highlighting + find) ===== -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/dialog/dialog.min.css">
+
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -195,24 +191,78 @@
   }
   .badge.idle { background: transparent; color: var(--text-dim); }
 
-  /* ---------- Editor ---------- */
+  /* ---------- Editor (CodeMirror) ---------- */
   #htmlEditor {
-    flex: 1;
+    /* hidden textarea, replaced by CodeMirror */
     width: 100%;
-    padding: 14px 16px;
-    border: none;
-    outline: none;
-    resize: none;
+    flex: 1;
+  }
+
+  .editor-pane .CodeMirror {
+    flex: 1;
+    height: auto !important;
     font-family: 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
     font-size: 13.5px;
     line-height: 1.6;
-    background: var(--editor-bg);
-    color: var(--editor-text);
-    transition: background .2s, color .2s;
+    background: var(--editor-bg) !important;
+    color: var(--editor-text) !important;
     tab-size: 2;
-    overflow: auto;
-    white-space: pre;
   }
+  .editor-pane .CodeMirror-gutters {
+    background: var(--editor-bg) !important;
+    border-right: 1px solid var(--border) !important;
+  }
+  .editor-pane .CodeMirror-linenumber { color: var(--text-dim) !important; }
+  .editor-pane .CodeMirror-cursor { border-left-color: var(--editor-text) !important; }
+  .editor-pane .CodeMirror-selected { background: rgba(10,132,255,.2) !important; }
+  .editor-pane .CodeMirror-focused .CodeMirror-selected { background: rgba(10,132,255,.3) !important; }
+  .editor-pane .CodeMirror-activeline-background { background: rgba(0,0,0,.03); }
+  body.dark .editor-pane .CodeMirror-activeline-background { background: rgba(255,255,255,.04); }
+
+  /* Dark-mode syntax tokens */
+  body.dark .cm-s-default .cm-tag { color: #ff6b6b; }
+  body.dark .cm-s-default .cm-attribute { color: #ffd93d; }
+  body.dark .cm-s-default .cm-string { color: #6bcb77; }
+  body.dark .cm-s-default .cm-keyword { color: #4d96ff; }
+  body.dark .cm-s-default .cm-comment { color: #6e6e73; font-style: italic; }
+  body.dark .cm-s-default .cm-number { color: #ff8c42; }
+  body.dark .cm-s-default .cm-atom { color: #ff8c42; }
+  body.dark .cm-s-default .cm-def { color: #4dd0e1; }
+  body.dark .cm-s-default .cm-variable-2 { color: #ce93d8; }
+  body.dark .cm-s-default .cm-property { color: #4dd0e1; }
+  body.dark .cm-s-default .cm-bracket { color: #e0e0e0; }
+  body.dark .cm-s-default .cm-punctuation { color: #e0e0e0; }
+  body.dark .cm-s-default .cm-operator { color: #e0e0e0; }
+
+  /* CodeMirror find / dialog */
+  .CodeMirror-dialog {
+    background: var(--panel-bg) !important;
+    color: var(--text) !important;
+    border-bottom: 1px solid var(--border) !important;
+    font-family: inherit;
+    padding: 6px 10px;
+  }
+  .CodeMirror-dialog input {
+    background: var(--editor-bg) !important;
+    color: var(--editor-text) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 4px;
+    padding: 3px 6px;
+    outline: none;
+    font-family: inherit;
+  }
+  .CodeMirror-dialog button {
+    background: var(--btn-bg);
+    color: var(--text);
+    border: 1px solid var(--btn-border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .CodeMirror-dialog .CodeMirror-search-hint { color: var(--text-dim); }
+  .cm-searchMatch { background: rgba(255,214,0,.4); }
+  .cm-searchMatch-selected { background: rgba(255,140,0,.6); }
 
   /* ---------- Preview ---------- */
   #previewFrame {
@@ -291,7 +341,7 @@
   .drop-overlay.visible { display: flex; }
 
   /* ============================================
-     MOBILE: tab-based layout (fix for v2 issue)
+     MOBILE: tab-based layout
      ============================================ */
   @media (max-width: 899px) {
     .tab-bar { display: flex; }
@@ -306,23 +356,20 @@
       height: 100% !important;
     }
 
-    /* Hide inactive pane based on active tab */
     .split[data-active="code"] .preview-pane { display: none; }
     .split[data-active="preview"] .editor-pane { display: none; }
 
-    /* Compact toolbar + headers on mobile */
     .toolbar { padding: 6px 8px; gap: 6px; }
     .toolbar .brand { font-size: 12px; margin-right: 2px; gap: 4px; }
     .toolbar .brand .dot { font-size: 16px; }
     .btn { padding: 6px 10px; font-size: 12px; }
     .pane-header { padding: 4px 10px; font-size: 11px; }
     .badge { font-size: 10px; padding: 1px 6px; }
-    #htmlEditor { font-size: 13px; padding: 12px; }
+    .editor-pane .CodeMirror { font-size: 13px; }
 
     .toast { bottom: 16px; font-size: 12px; padding: 8px 16px; }
   }
 
-  /* Extra-compact for very small screens */
   @media (max-width: 480px) {
     .toolbar .brand { display: none; }
     .btn { padding: 6px 8px; font-size: 11px; }
@@ -382,6 +429,16 @@
   <div class="drop-overlay" id="dropOverlay">Drop HTML file to import</div>
   <div class="toast" id="toast"></div>
 
+  <!-- ===== CodeMirror scripts (must load before our app script) ===== -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/search/searchcursor.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/search/search.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/dialog/dialog.min.js"></script>
+
 <script>
 (function () {
   'use strict';
@@ -389,7 +446,6 @@
   /* ============================================================
    *  DOM refs
    * ============================================================ */
-  const editor         = document.getElementById('htmlEditor');
   const preview        = document.getElementById('previewFrame');
   const fileInput      = document.getElementById('fileInput');
   const exportBtn      = document.getElementById('exportBtn');
@@ -460,6 +516,30 @@
   let debounceTimer;
 
   /* ============================================================
+   *  CodeMirror init
+   * ============================================================ */
+  const editor = CodeMirror.fromTextArea(document.getElementById('htmlEditor'), {
+    mode: 'htmlmixed',
+    lineNumbers: true,
+    lineWrapping: true,
+    indentUnit: 2,
+    tabSize: 2,
+    styleActiveLine: true,
+    extraKeys: {
+      'Ctrl-F': 'findPersistent',
+      'Cmd-F':  'findPersistent',
+      'Ctrl-G': 'findNext',
+      'Cmd-G':  'findNext',
+      'Shift-Ctrl-G': 'findPrev',
+      'Shift-Cmd-G':  'findPrev',
+      'Tab': function (cm) {
+        if (cm.somethingSelected()) cm.indentSelection('add');
+        else cm.replaceSelection('  ', 'end');
+      }
+    }
+  });
+
+  /* ============================================================
    *  Toast helper
    * ============================================================ */
   let toastTimer;
@@ -474,7 +554,7 @@
    *  Stats
    * ============================================================ */
   function updateStats() {
-    const val = editor.value;
+    const val = editor.getValue();
     const lines = val === '' ? 0 : val.split('\n').length;
     statsEl.textContent = lines + ' lines · ' + val.length + ' chars';
   }
@@ -485,7 +565,7 @@
   function updatePreview(immediate) {
     clearTimeout(debounceTimer);
     const run = function () {
-      preview.srcdoc = editor.value || '<!DOCTYPE html><html><body></body></html>';
+      preview.srcdoc = editor.getValue() || '<!DOCTYPE html><html><body></body></html>';
       refreshBadge.textContent = 'updated ✓';
       refreshBadge.classList.remove('idle');
       clearTimeout(refreshBadgeTimer);
@@ -503,7 +583,7 @@
    * ============================================================ */
   function save() {
     try {
-      localStorage.setItem(STORAGE_KEY, editor.value);
+      localStorage.setItem(STORAGE_KEY, editor.getValue());
       localStorage.setItem(FILENAME_KEY, currentFilename);
     } catch (_) {}
   }
@@ -520,34 +600,17 @@
    *  Init
    * ============================================================ */
   const saved = loadSaved();
-  editor.value = saved !== null ? saved : DEFAULT_HTML;
+  editor.setValue(saved !== null ? saved : DEFAULT_HTML);
   updateStats();
   updatePreview(true);
 
   /* ============================================================
    *  Editor events
    * ============================================================ */
-  editor.addEventListener('input', function () {
+  editor.on('change', function () {
     updateStats();
     updatePreview();
     save();
-  });
-
-  editor.addEventListener('keydown', function (e) {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = editor.selectionStart;
-      const end   = editor.selectionEnd;
-      const val   = editor.value;
-      editor.value = val.substring(0, start) + '  ' + val.substring(end);
-      editor.selectionStart = editor.selectionEnd = start + 2;
-      updateStats();
-      save();
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-      e.preventDefault();
-      exportBtn.click();
-    }
   });
 
   /* ============================================================
@@ -557,8 +620,8 @@
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function (ev) {
-      editor.value = ev.target.result;
       currentFilename = file.name || 'index.html';
+      editor.setValue(ev.target.result);
       updateStats();
       updatePreview(true);
       save();
@@ -608,7 +671,7 @@
    *  Export
    * ============================================================ */
   exportBtn.addEventListener('click', function () {
-    const blob = new Blob([editor.value], { type: 'text/html;charset=utf-8' });
+    const blob = new Blob([editor.getValue()], { type: 'text/html;charset=utf-8' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href = url;
@@ -624,10 +687,10 @@
    *  Clear
    * ============================================================ */
   clearBtn.addEventListener('click', function () {
-    if (editor.value.trim() === '') { toast('Editor is already empty'); return; }
+    if (editor.getValue().trim() === '') { toast('Editor is already empty'); return; }
     if (confirm('Clear all code from the editor?\n\n(Your imported file on disk is safe.)')) {
-      editor.value = '';
       currentFilename = 'index.html';
+      editor.setValue('');
       updateStats();
       updatePreview(true);
       save();
@@ -640,12 +703,12 @@
    *  Full Preview — opens in new tab with fallback
    * ============================================================ */
   fullPreviewBtn.addEventListener('click', function () {
-    // Try 1: window.open + document.write (preserves origin, best for testing)
+    const code = editor.getValue();
     const w = window.open('', '_blank');
     if (w) {
       try {
         w.document.open();
-        w.document.write(editor.value);
+        w.document.write(code);
         w.document.close();
         toast('Opened in new tab');
         return;
@@ -653,10 +716,8 @@
         try { w.close(); } catch (__) {}
       }
     }
-
-    // Try 2: Blob URL fallback (more reliable on strict mobile browsers)
     try {
-      const blob = new Blob([editor.value], { type: 'text/html;charset=utf-8' });
+      const blob = new Blob([code], { type: 'text/html;charset=utf-8' });
       const url  = URL.createObjectURL(blob);
       const w2   = window.open(url, '_blank');
       if (!w2) {
@@ -679,6 +740,7 @@
     const isDark = document.body.classList.contains('dark');
     themeToggle.textContent = isDark ? '☀️ Light' : '🌙 Dark';
     try { localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light'); } catch(_) {}
+    editor.refresh();
   });
   try {
     const savedTheme = localStorage.getItem(THEME_KEY);
@@ -695,17 +757,16 @@
    * ============================================================ */
   function setActiveTab(tabName) {
     splitEl.dataset.active = tabName;
-
     tabBar.querySelectorAll('.tab').forEach(function (t) {
       t.classList.toggle('active', t.dataset.tab === tabName);
     });
-
     try { localStorage.setItem(TAB_KEY, tabName); } catch(_) {}
 
-    // When switching to preview: dismiss keyboard + force refresh
     if (tabName === 'preview') {
-      editor.blur();
+      try { editor.getInputField().blur(); } catch (_) {}
       updatePreview(true);
+    } else {
+      editor.refresh();
     }
   }
 
@@ -715,7 +776,6 @@
     setActiveTab(tab.dataset.tab);
   });
 
-  // Restore saved tab (only matters on mobile)
   try {
     const savedTab = localStorage.getItem(TAB_KEY);
     if (savedTab === 'preview' || savedTab === 'code') {
@@ -758,31 +818,32 @@
     try { divider.releasePointerCapture(e.pointerId); } catch (_) {}
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
+    editor.refresh();
   }
   divider.addEventListener('pointerup', endResize);
   divider.addEventListener('pointercancel', endResize);
 
   divider.addEventListener('dblclick', function () {
     editorPane.style.width = '50%';
+    editor.refresh();
     toast('Split reset to 50/50');
   });
 
   /* ============================================================
    *  Resize boundary handling
-   *  (clear inline width on transition to/from mobile)
    * ============================================================ */
   let lastWasMobile = window.innerWidth < 900;
   window.addEventListener('resize', function () {
     const isMobile = window.innerWidth < 900;
     if (isMobile !== lastWasMobile) {
-      // Transition: clear inline width so CSS takes over cleanly
       editorPane.style.width = '';
       lastWasMobile = isMobile;
     }
+    editor.refresh();
   });
 
   /* ============================================================
-   *  Global shortcut
+   *  Global shortcut (Ctrl/Cmd+S)
    * ============================================================ */
   document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
